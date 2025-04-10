@@ -191,18 +191,6 @@ class tr_env_gym(MujocoEnv, utils.EzPickle):
         self._reward_delay_steps = int(reward_delay_seconds/self.dt)
         self._heading_buffer = deque()
 
-    @property
-    def healthy_reward(self):
-        return (
-            float(self.is_healthy or self._terminate_when_unhealthy)
-            * self._healthy_reward
-        )
-
-    def control_cost(self, action, tendon_length_6):
-        # control_cost = self._ctrl_cost_weight * np.sum(np.square(action + 0.5 - tendon_length_6)) # 0.5 is the initial spring length for 6 tendons
-        # control_cost = self._ctrl_cost_weight * np.sum(np.square(action + 0.15 - tendon_length_6))
-        control_cost = self._ctrl_cost_weight * np.sum(np.square(action))
-        return control_cost
 
     @property
     def contact_forces(self):
@@ -221,14 +209,9 @@ class tr_env_gym(MujocoEnv, utils.EzPickle):
     @property
     def is_healthy(self):
         state = self.state_vector()
-        if self._desired_action == "turn" or self._desired_action == "aiming":
-            bar_speeds = np.abs(state[21:])
-            min_velocity = 0.1
-            is_healthy = np.isfinite(state).all() and (np.any(bar_speeds > min_velocity) )    
 
-        else: #self._desired_action == "straight" or self._desired_action == "tracking" or self._desired_action == "vel_track":
-            min_velocity = 0.0001
-            is_healthy = np.isfinite(state).all() and ((self._x_velocity > min_velocity or self._x_velocity < -min_velocity) \
+        min_velocity = 0.0001
+        is_healthy = np.isfinite(state).all() and ((self._x_velocity > min_velocity or self._x_velocity < -min_velocity) \
                                                         or (self._y_velocity > min_velocity or self._y_velocity < -min_velocity) )
             
         
@@ -285,148 +268,8 @@ class tr_env_gym(MujocoEnv, utils.EzPickle):
         tendon_length_6 = tendon_length[:6]
 
         state, observation = self._get_obs()
-
-
-        if self._desired_action == "turn":
-            self._heading_buffer.append(psi_after)
-            if len(self._heading_buffer) > self._reward_delay_steps:
-                old_psi = self._heading_buffer.popleft()
-
-                # unless the tensegrity is rotating faster than pi /(self.dt*self._reward_delay_steps) rad/s
-                # then this situation means that the tensegrity rolled from pi to -pi, and the delta should be positive
-                if psi_after < -np.pi/2 and old_psi > np.pi/2: 
-                    psi_after = 2*np.pi + psi_after
-                # unless the tensegrity is rotating faster than pi /(self.dt*self._reward_delay_steps) rad/s
-                # then this situation means that the tensegrity rolled from -pi to pi, and the delta should be negative
-                elif psi_after > np.pi/2 and old_psi < -np.pi/2:
-                    psi_after = -2*np.pi + psi_after
-                delta_psi = (psi_after - old_psi) / (self.dt*self._reward_delay_steps)
-                forward_reward = delta_psi * self._desired_direction 
-                costs = ctrl_cost = self.control_cost(action, tendon_length_6)
-
-            else:
-                forward_reward = 0
-                costs = ctrl_cost =  0
-                delta_psi = 0
-            
-            if self._terminate_when_unhealthy:
-                healthy_reward = self.healthy_reward
-            else:
-                healthy_reward = 0
-            
-            terminated = self.terminated  
-
-
-        elif self._desired_action == "straight":
-            
-            psi_movement = np.arctan2(y_position_after-y_position_before, x_position_after-x_position_before)
-
-            psi_diff = np.abs(psi_movement-self._reset_psi)
-
-            forward_reward = self._desired_direction*\
-                                (np.sqrt((x_position_after-x_position_before)**2 + \
-                                        (y_position_after - y_position_before)**2) *\
-                                np.cos(psi_diff)/ self.dt) * 5.0
-
-            costs = ctrl_cost = self.control_cost(action, tendon_length_6)
-
-            if self._terminate_when_unhealthy:
-                healthy_reward = self.healthy_reward
-            else:
-                healthy_reward = 0
-            
-            terminated = self.terminated
-
-        elif self._desired_action == "aiming":
-            target_direction = self._waypt - xy_position_before
-            target_direction = target_direction / np.linalg.norm(target_direction)
-            target_psi = np.arctan2(target_direction[1], target_direction[0])
-            new_psi_rbt_tgt = self._angle_normalize(target_psi - psi_after)
-            self._heading_buffer.append(new_psi_rbt_tgt)
-            if len(self._heading_buffer) > self._reward_delay_steps:
-                old_psi_rbt_tgt = self._heading_buffer.popleft()
-                delta_psi = -(np.abs(new_psi_rbt_tgt) - np.abs(old_psi_rbt_tgt)) / (self.dt*self._reward_delay_steps)
-                forward_reward = delta_psi * self._yaw_reward_weight
-            else:
-                delta_psi = 0
-                forward_reward = 0
-            
-            costs = ctrl_cost = self.control_cost(action, tendon_length_6)
-            
-            healthy_reward = 0
-            
-            terminated = self.terminated  
-            if self._step_num > 1000:
-                terminated = True
         
-        elif self._desired_action == "tracking":
-            # ditch tracking reward
-            ditch_rew_after = self._ditch_reward(xy_position_after)
-            ditch_rew_before = self._ditch_reward(xy_position_before)
-            forward_reward = ditch_rew_after - ditch_rew_before
-
-            costs = ctrl_cost = self.control_cost(action, tendon_length_6)
-
-            healthy_reward = 0
-
-            terminated = self.terminated  
-            if self._step_num > 1000:
-                terminated = True
-        
-        elif self._desired_action == "vel_tracking":
-            ang_vel_bwd = self._angle_normalize(psi_after - psi_before)/self.dt
-            vel_bwd = np.array([self._x_velocity, self._y_velocity, ang_vel_bwd])
-            vel_cmd = state[-3:]
-            forward_reward = self._vel_track_rew(vel_cmd=vel_cmd, vel_bwd=vel_bwd)
-
-            costs = ctrl_cost = self.control_cost(action, tendon_length_6)
-
-            if self._terminate_when_unhealthy:
-                healthy_reward = self.healthy_reward
-            else:
-                healthy_reward = 0
-            
-            terminated = self.terminated
-        
-
-        rewards = forward_reward + healthy_reward
-
-        # if the contact between bars is too high, terminate the training run
-        if np.any(self.data.cfrc_ext > 1500) or np.any(self.data.cfrc_ext < -1500):
-            terminated = True
-
-
-        
-        info = {
-            "reward_forward": forward_reward,
-            "reward_ctrl": -ctrl_cost,
-            #"reward_contact_with_self": -contact_with_self_cost,
-            "reward_survive": healthy_reward,
-            "x_position": xy_position_after[0],
-            "y_position": xy_position_after[1],
-            "psi": psi_after,
-            "distance_from_origin": np.linalg.norm(xy_position_after, ord=2),
-            "x_velocity": self._x_velocity,
-            "y_velocity": self._y_velocity,
-            "tendon_length": tendon_length,
-            "real_observation": observation,
-            "forward_reward": forward_reward,
-            "waypt": self._waypt,
-            "oripoint": self._oripoint,
-        }
-        if self._use_contact_forces:
-            contact_cost = self.contact_cost
-            costs += contact_cost
-            info["reward_ctrl"] = -contact_cost
-
-        reward = rewards - costs #- contact_with_self_cost
-
-        self._step_num += 1
-
-        if self.render_mode == "human":
-            self.render()
-        
-        return state, observation, reward, terminated, False, info
+        return 
 
     def _get_obs(self):
         
@@ -619,18 +462,6 @@ class tr_env_gym(MujocoEnv, utils.EzPickle):
 
         # '''
         # with rolling noise start
-        # rolling_qpos = [[0.25551711, -0.00069342, 0.22404039, -0.49720971, 0.24315431, 0.75327284, -0.35530059, 0.14409445, 0.0654207, 0.33662589, 0.42572066, 0.01379464, -0.53972521, 0.72613244, 0.28544944, -0.04883333, 0.38591159, 0.137357, 0.06898275, -0.85996553, 0.48665565],
-        #                 [0.17072155, 0.12309229, 0.34540078, 0.84521031, 0.46789545, -0.25727243, -0.02245608, 0.28958816, 0.01081555, 0.39491017, 0.48941231, 0.78206488, -0.37311614, 0.09815532, 0.26757914, 0.06595669, 0.21556319, 0.55749435, 0.52139978, -0.59035693, -0.2623376],
-        #                 [0.25175364, -0.07481714, 0.38328213, -0.34018568, -0.7272216, -0.46209704, 0.37668125, 0.24052312, -0.03980219, 0.21579878, -0.04044885, -0.77605179, -0.13528399, 0.61465906, 0.13432437, 0.04431492, 0.3472605, -0.39430158, -0.47235401, -0.24626466, 0.74884021]]
-        # rolling_qpos = [[0.08369179, -0.28792231, 0.24830847, -0.49145555, 0.7539914, -0.27511722, -0.33805166, 0.14497616, -0.19291743, 0.35052097, -0.84766041, 0.27950622, 0.45085889, 0.00862359, 0.04557825, -0.29876206, 0.39531985, -0.35798606, -0.47531391, 0.72471075, 0.34744352],
-        #                 [0.14497616, -0.19291743, 0.35052097, -0.84766041, 0.27950622, 0.45085889, 0.00862359, 0.04557825, -0.29876206, 0.39531985, -0.35798606, -0.47531391, 0.72471075, 0.34744352, 0.08369179, -0.28792231, 0.24830847, -0.49145555, 0.7539914, -0.27511722, -0.33805166],
-        #                 [0.04557825, -0.29876206, 0.39531985, -0.35798606, -0.47531391, 0.72471075, 0.34744352, 0.08369179, -0.28792231, 0.24830847, -0.49145555, 0.7539914, -0.27511722, -0.33805166, 0.14497616, -0.19291743, 0.35052097, -0.84766041, 0.27950622, 0.45085889, 0.00862359]]
-        # rolling_qpos = [[0.07900689, -0.32670045,  0.23079722,  0.49365198, -0.74001353,  0.26668361,  0.37090101,  0.13713385, -0.24342633,  0.32722167,  0.82936968, -0.31256817, -0.46189217, -0.03320677,  0.04903377, -0.3421725,   0.36675097,  0.33407281,  0.43794432, -0.72515863, -0.41321313],
-        #                 [0.15521685, -0.20651043,  0.38922255,  0.85639289, -0.26723449, -0.44110818, -0.02450564,  0.02999107, -0.33576412,  0.43868814,  0.33839518,  0.48544838, -0.73094128, -0.33993149,  0.08083394, -0.31942006,  0.25783949,  0.51726058, -0.74281033,  0.29432583,  0.30667022],
-        #                 [0.02985312, -0.33588999,  0.43866597,  0.33840617,  0.48522953, -0.73107566, -0.33994403,  0.08072907, -0.31942136,  0.25766037,  0.51740763, -0.74276722,  0.29421311,  0.30663471,  0.15537661, -0.20664637,  0.38923648,  0.85640002, -0.26722239, -0.44110397, -0.02446392],
-        #                 [0.24191878,  0.30939576,  0.25838614,  0.04211683, -0.66689235, -0.44050762,  0.59952798,  0.1105878,   0.33967509,  0.38925944,  0.50825334,  0.20884794, -0.4715363,   0.68972067,  0.27475478,  0.2682452,   0.4387596,   0.47235593,  0.87732918, -0.01675131,  0.08302277],
-        #                 [0.1105878,   0.33967509,  0.38925944,  0.50825334,  0.20884794, -0.4715363,   0.68972067,  0.27475478,  0.2682452,   0.4387596,   0.47235593,  0.87732918, -0.01675131,  0.08302277,  0.24191878,  0.30939576,  0.25838614,  0.04211683, -0.66689235, -0.44050762,  0.59952798],
-        #                 [0.27475478,  0.2682452,   0.4387596,   0.47235593,  0.87732918, -0.01675131,  0.08302277,  0.24191878,  0.30939576,  0.25838614,  0.04211683, -0.66689235, -0.44050762,  0.59952798,  0.1105878,   0.33967509,  0.38925944,  0.50825334,  0.20884794, -0.4715363,   0.68972067]]
         rolling_qpos = [[0.2438013,  -0.23055046,  0.10995744,  0.46165276, -0.61078778, -0.64202933, -0.04016669,  0.23304155, -0.2781429,   0.0948906,   0.57252615,  0.17486495, -0.48006247, -0.64123013,  0.24824598, -0.2435365,   0.06010128,  0.12428316,  0.77737256,  0.16439319, -0.59432355]]
 
         # idx_qpos = np.random.randint(0, 6)
@@ -728,43 +559,6 @@ class tr_env_gym(MujocoEnv, utils.EzPickle):
         right_COM_before = (pos_r01_right_end+pos_r23_right_end+pos_r45_right_end)/3
         orientation_vector_before = left_COM_before - right_COM_before
         self._reset_psi = np.arctan2(-orientation_vector_before[0], orientation_vector_before[1])
-        
-
-        if self._desired_action == "tracking":
-            self._oripoint = np.array([(left_COM_before[0]+right_COM_before[0])/2, (left_COM_before[1]+right_COM_before[1])/2])
-            min_waypt_range, max_waypt_range = self._waypt_range
-            min_waypt_angle, max_waypt_angle = self._waypt_angle_range
-            waypt_length = np.random.uniform(min_waypt_range, max_waypt_range)
-            waypt_yaw = np.random.uniform(min_waypt_angle, max_waypt_angle) + self._reset_psi
-            if self._is_test == True:
-                kmm_length = 0.5
-                kmm_yaw = 0.5
-                waypt_length = kmm_length*max_waypt_range + (1-kmm_length)*min_waypt_range
-                waypt_yaw = (kmm_yaw*max_waypt_angle + (1-kmm_yaw)*min_waypt_angle) + self._reset_psi
-            self._waypt = np.array([self._oripoint[0] + waypt_length * np.cos(waypt_yaw), self._oripoint[1] + waypt_length * np.sin(waypt_yaw)])
-            # if self._is_test == True: # for test3
-            #     self._waypt = np.array([0, 0]) # for test3
-        
-        elif self._desired_action == "aiming":
-            self._oripoint = np.array([(left_COM_before[0]+right_COM_before[0]/2), (left_COM_before[1]+right_COM_before[1])/2])
-            min_waypt_range, max_waypt_range = self._waypt_range
-            min_waypt_angle = -np.pi
-            max_waypt_angle = np.pi
-            waypt_length = np.random.uniform(min_waypt_range, max_waypt_range)
-            waypt_yaw = np.random.uniform(min_waypt_angle, max_waypt_angle) + self._reset_psi
-            if self._is_test == True:
-                kmm_length = 0.5
-                kmm_yaw = 0.75
-                waypt_length = kmm_length*max_waypt_range + (1-kmm_length)*min_waypt_range
-                waypt_yaw = (kmm_yaw*max_waypt_angle + (1-kmm_yaw)*min_waypt_angle) + self._reset_psi
-            self._waypt = np.array([self._oripoint[0] + waypt_length * np.cos(waypt_yaw), self._oripoint[1] + waypt_length * np.sin(waypt_yaw)])
-            if self._is_test == True: # for test3
-                self._waypt = np.array([0, 0]) # for test3
-        
-        elif self._desired_action == "vel_track":
-            lin_vel_scale = 0.5
-            self._lin_vel_cmd = np.array([lin_vel_scale*np.cos(self._reset_psi), lin_vel_scale*np.sin(self._reset_psi)])
-            self._ang_vel_cmd = 0.0
                 
         self._step_num = 0
         if self._desired_action == "turn" or self._desired_action == "aiming":

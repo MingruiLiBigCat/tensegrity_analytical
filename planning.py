@@ -7,7 +7,7 @@ class COM_scheduler(object):
         """
         self.a=a
         self.b=b
-        self.slope, self.intercept = self.line_equation(a, b)
+        self.slope, self.intercept = self.__line_equation(a, b)
 
     def __line_equation(self,a, b):
         if b == 0:  

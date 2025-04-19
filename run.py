@@ -10,6 +10,11 @@ def run():
                                         desired_direction = 1,
                                         terminate_when_unhealthy = True)
     scheduler = COM_scheduler(1, 0)
+
+if __name__ == "__main__":
+    run()
+
+    
     #For step: env.step(action)
     #For get_obs: tensegrity.update_position_from_env(env)
     #For get_COM: scheduler.get_COM(x0, y0, x1, y1, x2, y2, x3, y3)

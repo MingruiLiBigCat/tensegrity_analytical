@@ -1,5 +1,8 @@
 import numpy as np
 from scipy.optimize import minimize, Bounds
+import matplotlib.pyplot as plt
+import os
+import csv
 
 class TensegrityStructure:
     def __init__(self, node_positions, rod_pairs, cable_pairs, rest_lengths, stiffness, mass, fixed_nodes):
@@ -52,10 +55,6 @@ class TensegrityStructure:
             rod_center = 0.5 * (nodes[i] + nodes[j])
             com += self.mass[k] * rod_center
         return com / total_mass
-    
-    def update_position_from_env(self,env):
-        state, obs = env._get_obs()
-        node_positions = obs
 
 # --- Trust-constr 前向运动学 ---
 def forward_kinematics_trust_verbose_fixed(structure):
@@ -87,32 +86,66 @@ def forward_kinematics_trust_verbose_fixed(structure):
 
     return structure.unpack(res.x)
 
-# --- Jacobian 有限差分 ---
-def jacobian_fd_trust(structure, q, delta=1e-4):
-    n = len(q)
-    J = np.zeros((3, n))
-    structure.rest_lengths = q
-    ne = structure.center_of_mass(forward_kinematics_trust_verbose_fixed(structure))
-    for i in range(n):
-        dq = np.zeros_like(q)
-        dq[i] = delta
-        structure.rest_lengths = q + dq
-        ne_plus = structure.center_of_mass(forward_kinematics_trust_verbose_fixed(structure))
-        J[:, i] = (ne_plus - ne) / delta
-    structure.rest_lengths = q
-    return J
+# --- 从 MuJoCo 环境中更新结构位置 ---
+def update_position_from_env(structure, env):
+    env_nodes = env.get_node_positions()
+    structure.node_positions = np.array(env_nodes)
 
-# --- 逆向运动学主函数 ---
-def inverse_kinematics_trust_fully_consistent(structure, q0, ne_target, tol=1e-4, max_iter=10):
-    q = q0.copy()
-    for _ in range(max_iter):
-        structure.rest_lengths = q
-        nodes = forward_kinematics_trust_verbose_fixed(structure)
-        ne = structure.center_of_mass(nodes)
-        error = ne_target - ne
-        if np.linalg.norm(error) < tol:
-            break
-        G = jacobian_fd_trust(structure, q)
-        dq = np.linalg.pinv(G) @ error
-        q += dq
-    return q, forward_kinematics_trust_verbose_fixed(structure)
+# --- COM 轨迹规划 ---
+def get_target_COM_from_scheduler(scheduler, env):
+    foot_positions = env.get_foot_positions()  # [x0, y0, x1, y1, x2, y2, x3, y3]
+    return scheduler.get_COM(*foot_positions)
+
+# --- 可视化结构保存图像 ---
+def save_structure_plot(nodes, step, save_dir="figs"):
+    os.makedirs(save_dir, exist_ok=True)
+    fig = plt.figure()
+    ax = fig.add_subplot(111, projection='3d')
+    ax.scatter(nodes[:, 0], nodes[:, 1], nodes[:, 2], color='blue')
+    for i, pos in enumerate(nodes):
+        ax.text(pos[0], pos[1], pos[2], str(i), color='red')
+    ax.set_xlabel('X')
+    ax.set_ylabel('Y')
+    ax.set_zlabel('Z')
+    ax.set_title(f"Step {step}")
+    plt.savefig(os.path.join(save_dir, f"step_{step:03d}.png"))
+    plt.close()
+
+# --- 保存绳长历史为 CSV ---
+def save_rest_lengths_csv(history, filename="rest_lengths.csv"):
+    with open(filename, mode='w', newline='') as f:
+        writer = csv.writer(f)
+        writer.writerow([f"cable_{i}" for i in range(len(history[0]))])
+        for row in history:
+            writer.writerow(row)
+
+# --- 单步 IK 更新函数 ---
+def ik_step(structure, q_current, com_target, history=None, step=None):
+    structure.rest_lengths = q_current
+    nodes = forward_kinematics_trust_verbose_fixed(structure)
+    current_com = structure.center_of_mass(nodes)
+    error = com_target - current_com
+
+    if history is not None:
+        history.append(q_current.copy())
+    if step is not None:
+        save_structure_plot(nodes, step)
+
+    if np.linalg.norm(error) < 1e-4:
+        return q_current, nodes
+
+    n = len(q_current)
+    J = np.zeros((3, n))
+    for i in range(n):
+        dq = np.zeros_like(q_current)
+        dq[i] = 1e-4
+        structure.rest_lengths = q_current + dq
+        ne_plus = structure.center_of_mass(forward_kinematics_trust_verbose_fixed(structure))
+        J[:, i] = (ne_plus - current_com) / 1e-4
+
+    structure.rest_lengths = q_current
+    dq = np.linalg.pinv(J) @ error
+    q_next = q_current + dq
+    structure.rest_lengths = q_next
+    nodes = forward_kinematics_trust_verbose_fixed(structure)
+    return q_next, nodes

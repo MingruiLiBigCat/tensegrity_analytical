@@ -572,3 +572,21 @@ class tr_env_gym(MujocoEnv, utils.EzPickle):
                 getattr(self.viewer.cam, key)[:] = value
             else:
                 setattr(self.viewer.cam, key, value)
+
+    def get_rod_pairs(self):
+        pass
+    
+    def get_cable_pairs(self):
+        pass
+    
+    def get_rest_lengths(self):
+        pass
+    
+    def get_stiffnesses(self):
+        pass
+    
+    def get_rod_masses(self):
+        pass
+    
+    def get_fixed_nodes(self):
+        pass

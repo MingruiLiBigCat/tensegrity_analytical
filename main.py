@@ -20,7 +20,7 @@ def run():
 
     # 2. 获取初始化数据（只能通过接口）
     obs = env.reset()
-    env_nodes = env.get_node_positions()
+    env_nodes = env._get_obs()
     rod_pairs = env.get_rod_pairs()
     cable_pairs = env.get_cable_pairs()
     rest_lengths = np.array(env.get_rest_lengths())
@@ -72,7 +72,7 @@ def run():
 
         # 可视化保存
         fig_path = os.path.join("figs", f"step_{step:03d}.png")
-        plot_structure(nodes, structure.cable_pairs, structure.rod_pairs, save_path=fig_path)
+        #plot_structure(nodes, structure.cable_pairs, structure.rod_pairs, save_path=fig_path)
 
         if done or truncated:
             print("❗️仿真终止")

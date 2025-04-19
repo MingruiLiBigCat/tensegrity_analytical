@@ -52,6 +52,10 @@ class TensegrityStructure:
             rod_center = 0.5 * (nodes[i] + nodes[j])
             com += self.mass[k] * rod_center
         return com / total_mass
+    
+    def update_position_from_env(self,env):
+        state, obs = env._get_obs()
+        node_positions = obs
 
 # --- Trust-constr 前向运动学 ---
 def forward_kinematics_trust_verbose_fixed(structure):

@@ -574,19 +574,38 @@ class tr_env_gym(MujocoEnv, utils.EzPickle):
                 setattr(self.viewer.cam, key, value)
 
     def get_rod_pairs(self):
-        pass
+        return [(0,1),(2,3),(4,5)]
+    
+    def get_spring_paires(self):
+        return [(1,4),(0,3),(2,5)]
     
     def get_cable_pairs(self):
-        pass
+        return [(0,4),(0,2),(2,4),(1,5),(3,5),(1,4)]
     
     def get_rest_lengths(self):
-        pass
+        return self.data.ten_length[-9:]
     
     def get_stiffnesses(self):
-        pass
+        return [700,700,700]
     
     def get_rod_masses(self):
-        pass
+        return [3,3,3]
     
     def get_fixed_nodes(self):
-        pass
+        def find_closest_indices(lst):
+            min_three_indices = sorted(range(len(lst)), key=lambda i: lst[i])[:3]
+            min_three_indices.sort()  
+
+            min_three_values = [lst[i] for i in min_three_indices]
+
+            diff1 = abs(min_three_values[1] - min_three_values[0])
+            diff2 = abs(min_three_values[2] - min_three_values[1])
+
+            if diff1 < 1e-4 and diff2 < 1e-4:
+                return min_three_indices
+            else:
+                return [-1, -1, -1]
+        geoms = ["s0", "s1", "s2", "s3", "s4", "s5"]
+        geom_height = [self.data.geom(geom).zpos.copy() for geom in geoms]
+        return find_closest_indices(geom_height)
+        

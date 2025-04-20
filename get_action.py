@@ -5,12 +5,15 @@ import os
 import csv
 
 class TensegrityStructure:
-    def __init__(self, node_positions, rod_pairs, cable_pairs, rest_lengths, stiffness, mass, fixed_nodes):
+    def __init__(self, node_positions, rod_pairs,
+                 elastic_cable_pairs, rigid_cable_pairs,
+                 rest_lengths, stiffness, mass, fixed_nodes):
         self.node_positions = node_positions.copy()
         self.rod_pairs = rod_pairs
-        self.cable_pairs = cable_pairs
-        self.rest_lengths = rest_lengths
-        self.stiffness = stiffness
+        self.elastic_cable_pairs = elastic_cable_pairs  # passive
+        self.rigid_cable_pairs = rigid_cable_pairs      # active (controlled)
+        self.rest_lengths = rest_lengths  # Only for rigid cables
+        self.stiffness = stiffness        # Only for elastic cables
         self.mass = mass
         self.fixed_nodes = fixed_nodes
         self.g = np.array([0, 0, -9.81])
@@ -28,10 +31,11 @@ class TensegrityStructure:
             r_cm = 0.5 * (nodes[i] + nodes[j])
             P_g += -self.mass[k] * self.g @ r_cm
         P_e = 0
-        for k, (i, j) in enumerate(self.cable_pairs):
+        for k, (i, j) in enumerate(self.elastic_cable_pairs):
             L = np.linalg.norm(nodes[i] - nodes[j])
-            delta = L - self.rest_lengths[k]
-            P_e += 0.5 * self.stiffness[k] * delta ** 2
+            delta = L - self.stiffness[k][1]  # Expected length is stored in stiffness[k][1]
+            k_val = self.stiffness[k][0]
+            P_e += 0.5 * k_val * delta ** 2
         return P_g + P_e
 
     def rod_constraints(self, x):
@@ -42,6 +46,9 @@ class TensegrityStructure:
             constraints.append(L - np.linalg.norm(self.node_positions[i] - self.node_positions[j]))
         for k in self.fixed_nodes:
             constraints.extend((nodes[k] - self.node_positions[k]).tolist())
+        for k, (i, j) in enumerate(self.rigid_cable_pairs):
+            L = np.linalg.norm(nodes[i] - nodes[j])
+            constraints.append(L - self.rest_lengths[k])
         return np.array(constraints)
 
     def ground_constraint(self, x):
@@ -59,7 +66,6 @@ class TensegrityStructure:
 # --- Trust-constr 前向运动学 ---
 def forward_kinematics_trust_verbose_fixed(structure):
     x0 = structure.pack(structure.node_positions)
-
     eq_constraint = {'type': 'eq', 'fun': structure.rod_constraints}
     ineq_constraint = {'type': 'ineq', 'fun': structure.ground_constraint}
     bounds = Bounds([-np.inf] * len(x0), [np.inf] * len(x0))
@@ -93,7 +99,7 @@ def update_position_from_env(structure, env):
 
 # --- COM 轨迹规划 ---
 def get_target_COM_from_scheduler(scheduler, env):
-    foot_positions = env.get_foot_positions()  # [x0, y0, x1, y1, x2, y2, x3, y3]
+    foot_positions = env.get_foot_positions()
     return scheduler.get_COM(*foot_positions)
 
 # --- 可视化结构保存图像 ---
@@ -115,11 +121,11 @@ def save_structure_plot(nodes, step, save_dir="figs"):
 def save_rest_lengths_csv(history, filename="rest_lengths.csv"):
     with open(filename, mode='w', newline='') as f:
         writer = csv.writer(f)
-        writer.writerow([f"cable_{i}" for i in range(len(history[0]))])
+        writer.writerow([f"rigid_cable_{i}" for i in range(len(history[0]))])
         for row in history:
             writer.writerow(row)
 
-# --- 单步 IK 更新函数 ---
+# --- 单步 IK 更新函数（仅作用于刚性绳） ---
 def ik_step(structure, q_current, com_target, history=None, step=None):
     structure.rest_lengths = q_current
     nodes = forward_kinematics_trust_verbose_fixed(structure)

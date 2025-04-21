@@ -19,10 +19,11 @@ def run():
 
     # 2. 获取初始化数据（只能通过接口）
     obs = env.reset()
-    env_nodes = env._get_obs()  # 获取节点位置
+    _,env_nodes = env._get_obs() # 获取节点位置
+    env_nodes = np.array(env_nodes).reshape(-1,3)  # 仅包含节点位置
     rod_pairs = env.get_rod_pairs()
-    elastic_cables = env.get_elastic_cable_pairs()
-    rigid_cables = env.get_rigid_cable_pairs()
+    elastic_cables = env.get_spring_pairs()
+    rigid_cables = env.get_cable_pairs()
     rest_lengths = np.array(env.get_rest_lengths())  # 仅包含 rigid cables 的
     stiffness = np.array(env.get_stiffnesses())      # 对应 rigid cables
     mass = np.array(env.get_rod_masses())
@@ -53,6 +54,7 @@ def run():
         x0, y0 = com[0], com[1]
 
         # 获取底盘三点（通常是前三个节点）
+        
         x1, y1 = structure.node_positions[0][:2]
         x2, y2 = structure.node_positions[1][:2]
         x3, y3 = structure.node_positions[2][:2]

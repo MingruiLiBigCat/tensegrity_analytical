@@ -69,7 +69,7 @@ def forward_kinematics_trust_verbose_fixed(structure):
     eq_constraint = {'type': 'eq', 'fun': structure.rod_constraints}
     ineq_constraint = {'type': 'ineq', 'fun': structure.ground_constraint}
     bounds = Bounds([-np.inf] * len(x0), [np.inf] * len(x0))
-
+    
     res = minimize(
         fun=structure.potential_energy,
         x0=x0,
@@ -94,8 +94,8 @@ def forward_kinematics_trust_verbose_fixed(structure):
 
 # --- 从 MuJoCo 环境中更新结构位置 ---
 def update_position_from_env(structure, env):
-    env_nodes = env.get_node_positions()
-    structure.node_positions = np.array(env_nodes)
+    _,env_nodes = env._get_obs()
+    structure.node_positions = np.array(env_nodes).reshape(-1,3)
 
 # --- COM 轨迹规划 ---
 def get_target_COM_from_scheduler(scheduler, env):

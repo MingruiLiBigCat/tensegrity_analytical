@@ -459,7 +459,10 @@ class tr_env_gym(MujocoEnv, utils.EzPickle):
 
         # '''
         # with rolling noise start
-        rolling_qpos = [[0.2438013,  -0.23055046,  0.10995744,  0.46165276, -0.61078778, -0.64202933, -0.04016669,  0.23304155, -0.2781429,   0.0948906,   0.57252615,  0.17486495, -0.48006247, -0.64123013,  0.24824598, -0.2435365,   0.06010128,  0.12428316,  0.77737256,  0.16439319, -0.59432355]]
+        rolling_qpos = [[0.2438013,  -0.23055046,  0.10995744,  0.46165276, -0.61078778, -0.64202933, 
+                         -0.04016669,  0.23304155, -0.2781429,   0.0948906,   0.57252615,  0.17486495, 
+                         -0.48006247, -0.64123013,  0.24824598, -0.2435365,   0.06010128,  0.12428316,  
+                         0.77737256,  0.16439319, -0.59432355]]
 
         # idx_qpos = np.random.randint(0, 6)
         idx_qpos = 0
@@ -576,17 +579,17 @@ class tr_env_gym(MujocoEnv, utils.EzPickle):
     def get_rod_pairs(self):
         return [(0,1),(2,3),(4,5)]
     
-    def get_spring_paires(self):
+    def get_spring_pairs(self):
         return [(1,4),(0,3),(2,5)]
     
     def get_cable_pairs(self):
         return [(0,4),(0,2),(2,4),(1,5),(3,5),(1,4)]
     
     def get_rest_lengths(self):
-        return self.data.ten_length[-9:]
+        return self.data.ten_length[0:9]
     
     def get_stiffnesses(self):
-        return [700,700,700]
+        return [[700,0.8],[700,0.8],[700,0.8]]
     
     def get_rod_masses(self):
         return [3,3,3]
@@ -606,6 +609,7 @@ class tr_env_gym(MujocoEnv, utils.EzPickle):
             else:
                 return [-1, -1, -1]
         geoms = ["s0", "s1", "s2", "s3", "s4", "s5"]
-        geom_height = [self.data.geom(geom).zpos.copy() for geom in geoms]
+        geom_height = [self.data.geom(geom).xpos[2].copy() for geom in geoms]
+        print(geom_height)
         return find_closest_indices(geom_height)
         

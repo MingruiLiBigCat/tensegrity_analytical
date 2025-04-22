@@ -10,8 +10,8 @@ def test_frame(env):
     frame =env.render()
     cv2.imwrite(f'frames/start.png', frame) 
     
-    state, observation=env._get_obs()
-    print("observation:", observation)
+    state, observation,global_obs=env._get_obs()
+    print("observation:", global_obs)
     exit(1)
 
 def run():
@@ -30,8 +30,10 @@ def run():
     out = cv2.VideoWriter('output.mp4', fourcc, 60, (640, 480))
     os.makedirs('frames', exist_ok=True)
     # 2. 获取初始化数据（只能通过接口）
-    
-    _,env_nodes = env._get_obs() # 获取节点位置
+    env.render()
+    state, observation,global_obs=env._get_obs()
+
+    _,_,env_nodes = env._get_obs() # 获取节点位置
     env_nodes = np.array(env_nodes).reshape(-1,3)  # 仅包含节点位置
     rod_pairs = env.get_rod_pairs()
     elastic_cables = env.get_spring_pairs()

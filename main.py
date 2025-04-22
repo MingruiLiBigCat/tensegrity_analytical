@@ -69,12 +69,12 @@ def run():
 
         
         x1, y1 = structure.node_positions[0][:2]
-        x2, y2 = structure.node_positions[1][:2]
-        x3, y3 = structure.node_positions[2][:2]
+        x2, y2 = structure.node_positions[3][:2]
+        x3, y3 = structure.node_positions[4][:2]
 
         # 由调度器给出目标 COM
         (x_target, y_target), _ = scheduler.get_COM(x0, y0, x1, y1, x2, y2, x3, y3)
-        target_com = np.array([x_target, y_target])
+        target_com = np.array([x_target, y_target,com[2]])
 
         # 执行单步 IK 解算
         q_next, nodes = ik_step(structure, q_current, target_com, history=rest_lengths_history, step=step)

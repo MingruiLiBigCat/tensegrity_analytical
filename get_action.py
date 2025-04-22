@@ -131,7 +131,7 @@ def save_rest_lengths_csv(history, filename="rest_lengths.csv"):
 def ik_step(structure, q_current, com_target, history=None, step=None):
     structure.rest_lengths = q_current
     nodes = forward_kinematics_trust_verbose_fixed(structure)
-    current_com = structure.center_of_mass(nodes)[:2]
+    current_com = structure.center_of_mass(nodes)
     error = com_target - current_com
 
     if history is not None:
@@ -143,12 +143,12 @@ def ik_step(structure, q_current, com_target, history=None, step=None):
         return q_current, nodes
 
     n = len(q_current)
-    J = np.zeros((2, n))
+    J = np.zeros((3, n))
     for i in range(n):
         dq = np.zeros_like(q_current)
         dq[i] = 1e-4
         structure.rest_lengths = q_current + dq
-        ne_plus = structure.center_of_mass(forward_kinematics_trust_verbose_fixed(structure))[:2]
+        ne_plus = structure.center_of_mass(forward_kinematics_trust_verbose_fixed(structure))
         J[:, i] = (ne_plus - current_com) / 1e-4
 
     structure.rest_lengths = q_current

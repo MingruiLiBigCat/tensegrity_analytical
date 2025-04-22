@@ -74,14 +74,14 @@ def forward_kinematics_trust_verbose_fixed(structure):
         fun=structure.potential_energy,
         x0=x0,
         constraints=[eq_constraint, ineq_constraint],
-        method='trust-constr',
+        method='L-BFGS-B',
         bounds=bounds,
         options={
-            'maxiter': 10000,
+            'maxiter': 1000000,
             'gtol': 1e-5,
             'xtol': 1e-6,
             'verbose': 0,
-            'disp': True
+            'disp': False
         }
     )
 
@@ -100,7 +100,8 @@ def update_position_from_env(structure, env):
 # --- COM 轨迹规划 ---
 def get_target_COM_from_scheduler(scheduler, env):
     foot_positions = env.get_foot_positions()
-    return scheduler.get_COM(*foot_positions)
+    foot, result = scheduler.get_COM(*foot_positions)
+    return foot
 
 # --- 可视化结构保存图像 ---
 def save_structure_plot(nodes, step, save_dir="figs"):

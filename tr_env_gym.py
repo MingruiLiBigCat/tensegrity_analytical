@@ -239,7 +239,6 @@ class tr_env_gym(MujocoEnv, utils.EzPickle):
 
         orientation_vector_before = left_COM_before - right_COM_before
         psi_before = np.arctan2(-orientation_vector_before[0], orientation_vector_before[1])
-        print(action)
         filtered_action = self._action_filter(action, self.data.ctrl[:].copy())
         self.do_simulation(filtered_action, self.frame_skip)
         xy_position_after = (self.get_body_com("r01_body")[:2].copy() + \
@@ -267,7 +266,7 @@ class tr_env_gym(MujocoEnv, utils.EzPickle):
         tendon_length = np.array(self.data.ten_length)
         tendon_length_6 = tendon_length[:6]
         
-        state, observation = self._get_obs()
+        state, observation,global_obs = self._get_obs()
         done = state[0]==np.nan
         #print("state", state)
         return observation,done,state
@@ -313,8 +312,7 @@ class tr_env_gym(MujocoEnv, utils.EzPickle):
         # position_r01 = self.data.geom("r01").xvelp
         # position_r23 = self.data.geom("r23").xvelp
         # position_r45 = self.data.geom("r45").xvelp
-
-
+        global_state = np.concatenate((pos_r01_left_end, pos_r01_right_end, pos_r23_left_end, pos_r23_right_end, pos_r45_left_end, pos_r45_right_end))
         tendon_lengths = self.data.ten_length[-9:] # 9
         
         random = rng.standard_normal(size=9)
@@ -394,7 +392,7 @@ class tr_env_gym(MujocoEnv, utils.EzPickle):
             state = np.concatenate((state, vel_cmd))
             state_with_noise = np.concatenate((state_with_noise, vel_cmd))
 
-        return state, observation
+        return state, observation, global_state
 
     def _angle_normalize(self, theta):
         if theta > np.pi:

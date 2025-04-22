@@ -65,6 +65,7 @@ class TensegrityStructure:
 
 # --- Trust-constr 前向运动学 ---
 def forward_kinematics_trust_verbose_fixed(structure):
+    #print(structure.node_positions)
     x0 = structure.pack(structure.node_positions)
     eq_constraint = {'type': 'eq', 'fun': structure.rod_constraints}
     ineq_constraint = {'type': 'ineq', 'fun': structure.ground_constraint}
@@ -94,7 +95,7 @@ def forward_kinematics_trust_verbose_fixed(structure):
 
 # --- 从 MuJoCo 环境中更新结构位置 ---
 def update_position_from_env(structure, env):
-    _,env_nodes = env._get_obs()
+    _,_,env_nodes = env._get_obs()
     structure.node_positions = np.array(env_nodes).reshape(-1,3)
 
 # --- COM 轨迹规划 ---
@@ -130,7 +131,7 @@ def save_rest_lengths_csv(history, filename="rest_lengths.csv"):
 def ik_step(structure, q_current, com_target, history=None, step=None):
     structure.rest_lengths = q_current
     nodes = forward_kinematics_trust_verbose_fixed(structure)
-    current_com = structure.center_of_mass(nodes)
+    current_com = structure.center_of_mass(nodes)[:2]
     error = com_target - current_com
 
     if history is not None:
@@ -142,12 +143,12 @@ def ik_step(structure, q_current, com_target, history=None, step=None):
         return q_current, nodes
 
     n = len(q_current)
-    J = np.zeros((3, n))
+    J = np.zeros((2, n))
     for i in range(n):
         dq = np.zeros_like(q_current)
         dq[i] = 1e-4
         structure.rest_lengths = q_current + dq
-        ne_plus = structure.center_of_mass(forward_kinematics_trust_verbose_fixed(structure))
+        ne_plus = structure.center_of_mass(forward_kinematics_trust_verbose_fixed(structure))[:2]
         J[:, i] = (ne_plus - current_com) / 1e-4
 
     structure.rest_lengths = q_current

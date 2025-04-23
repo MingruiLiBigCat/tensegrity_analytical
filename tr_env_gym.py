@@ -582,10 +582,10 @@ class tr_env_gym(MujocoEnv, utils.EzPickle):
         return [(1,4),(0,3),(2,5)]
     
     def get_cable_pairs(self):
-        return [(0,4),(0,2),(2,4),(1,5),(3,5),(1,4)]
+        return [(0,4),(0,2),(2,4),(1,5),(3,5),(1,3)]
     
     def get_rest_lengths(self):
-        return self.data.ten_length[0:9]
+        return self.data.ten_length[0:9]+0.1312
     
     def get_stiffnesses(self):
         return [[700,0.8],[700,0.8],[700,0.8]]
@@ -596,19 +596,16 @@ class tr_env_gym(MujocoEnv, utils.EzPickle):
     def get_fixed_nodes(self):
         def find_closest_indices(lst):
             min_three_indices = sorted(range(len(lst)), key=lambda i: lst[i])[:3]
-            min_three_indices.sort()  
-
             min_three_values = [lst[i] for i in min_three_indices]
 
-            diff1 = abs(min_three_values[1] - min_three_values[0])
-            diff2 = abs(min_three_values[2] - min_three_values[1])
-
-            if diff1 < 1e-4 and diff2 < 1e-4:
+            if max(np.abs(np.diff(min_three_values))) < 1e-4:  # 检查是否在同一平面上
                 return min_three_indices
             else:
-                return [-1, -1, -1]
+                # fallback：返回 z 最小的 1 个 node（避免报错）
+                return [min_three_indices[0]]
+                
         geoms = ["s0", "s1", "s2", "s3", "s4", "s5"]
         geom_height = [self.data.geom(geom).xpos[2].copy() for geom in geoms]
-        print(geom_height)
         return find_closest_indices(geom_height)
+
         

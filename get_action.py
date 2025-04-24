@@ -1,5 +1,8 @@
 import numpy as np
 from scipy.optimize import minimize, Bounds
+import os
+import csv
+import matplotlib.pyplot as plt
 
 class TensegrityStructure:
     def __init__(self, node_positions, rod_pairs,
@@ -12,7 +15,12 @@ class TensegrityStructure:
         self.rest_lengths = rest_lengths  # Only for rigid cables
         self.stiffness = stiffness        # Only for elastic cables
         self.mass = mass
-        self.fixed_nodes = fixed_nodes
+        if fixed_nodes == [-1, -1, -1]:
+            lowest_z_indices = np.argsort(node_positions[:, 2])[:2].tolist()
+            self.fixed_nodes = lowest_z_indices
+            print(f"⚠️ 检测到默认 fixed_nodes，已自动设为最低 2 个点: {self.fixed_nodes}")
+        else:
+            self.fixed_nodes = fixed_nodes
         self.g = np.array([0, 0, -9.81])
 
         print("🔧 Rods:", self.rod_pairs)
@@ -61,6 +69,7 @@ class TensegrityStructure:
     def ground_constraint(self, x):
         nodes = self.unpack(x)
         min_z = nodes[:, 2].min()
+        print(f"🟢 Min z in ground constraint: {min_z:.4f}")
         return nodes[:, 2]
 
     def center_of_mass(self, nodes):
@@ -70,11 +79,10 @@ class TensegrityStructure:
             rod_center = 0.5 * (nodes[i] + nodes[j])
             com += self.mass[k] * rod_center
         return com / total_mass
-    
-    def update_position_from_env(self,env):
-        self.node_positions, _, _ = env._get_obs()
-        self.node_positions = np.array(self.node_positions).reshape(-1, 3)
 
+    def update_position_from_env(self, env):
+        _, _, env_nodes = env._get_obs()
+        self.node_positions = np.array(env_nodes).reshape(-1, 3)
 
 # --- Forward kinematics with diagnostics ---
 def forward_kinematics_trust_verbose_fixed(structure):
@@ -83,6 +91,10 @@ def forward_kinematics_trust_verbose_fixed(structure):
     ineq_constraint = {'type': 'ineq', 'fun': structure.ground_constraint}
     bounds = Bounds([-np.inf] * len(x0), [np.inf] * len(x0))
 
+    print("📏 Num variables:", len(x0))
+    print("🗐 Num equality constraints:", len(structure.rod_constraints(x0)))
+    print("🗐 Num inequality constraints:", len(structure.ground_constraint(x0)))
+
     res = minimize(
         fun=structure.potential_energy,
         x0=x0,
@@ -90,7 +102,7 @@ def forward_kinematics_trust_verbose_fixed(structure):
         constraints=[eq_constraint, ineq_constraint],
         bounds=bounds,
         options={
-            'maxiter': 1000,
+            'maxiter': 10000,
             'ftol': 1e-9,
             'disp': True
         }
@@ -100,17 +112,6 @@ def forward_kinematics_trust_verbose_fixed(structure):
         raise RuntimeError(f"Forward kinematics failed: {res.message}")
 
     return structure.unpack(res.x)
-
-# --- 从 MuJoCo 环境中更新结构位置 ---
-def update_position_from_env(structure, env):
-    _,_,env_nodes = env._get_obs()
-    structure.node_positions = np.array(env_nodes).reshape(-1,3)
-
-# --- COM 轨迹规划 ---
-def get_target_COM_from_scheduler(scheduler, env):
-    foot_positions = env.get_foot_positions()
-    foot, result = scheduler.get_COM(*foot_positions)
-    return foot
 
 # --- 可视化结构保存图像 ---
 def save_structure_plot(nodes, step, save_dir="figs"):
@@ -129,6 +130,9 @@ def save_structure_plot(nodes, step, save_dir="figs"):
 
 # --- 保存绳长历史为 CSV ---
 def save_rest_lengths_csv(history, filename="rest_lengths.csv"):
+    if not history:
+        print("⚠️ rest_lengths_history 为空，跳过 CSV 保存")
+        return
     with open(filename, mode='w', newline='') as f:
         writer = csv.writer(f)
         writer.writerow([f"rigid_cable_{i}" for i in range(len(history[0]))])
@@ -138,7 +142,7 @@ def save_rest_lengths_csv(history, filename="rest_lengths.csv"):
 # --- 单步 IK 更新函数（仅作用于刚性绳） ---
 def ik_step(structure, q_current, com_target, history=None, step=None):
     structure.rest_lengths = q_current
-    nodes = forward_kinematics_trust_verbose_fixed(structure)
+    nodes = structure.node_positions
     current_com = structure.center_of_mass(nodes)
     error = com_target - current_com
 

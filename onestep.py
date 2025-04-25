@@ -1,8 +1,5 @@
-import os
-os.environ['MUJOCO_GL'] = 'osmesa'  # 或 'egl'/'glfw'
-os.environ['LD_PRELOAD'] = '/usr/lib/x86_64-linux-gnu/libOSMesa.so'
-
 import tr_env_gym
+import os
 import numpy as np
 from get_action import *
 from planning import COM_scheduler
@@ -51,6 +48,7 @@ def run():
     global out
     # 1. 初始化环境与调度器
     env = tr_env_gym.tr_env_gym(
+        render_mode="rgb_array",
         xml_file=os.path.join(os.getcwd(), "3prism_jonathan_steady_side.xml"),
         is_test=False,
         desired_action="straight",

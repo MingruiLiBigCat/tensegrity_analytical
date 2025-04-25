@@ -20,6 +20,8 @@ class tr_env_gym(MujocoEnv, utils.EzPickle):
             "human",
             "rgb_array",
             "depth_array",
+            "single_rgb_array",
+            "single_depth_array",
         ],
         "render_fps": 50,
     }
@@ -69,6 +71,8 @@ class tr_env_gym(MujocoEnv, utils.EzPickle):
         waypt_reward_amplitude=100,
         waypt_reward_stdev=0.10,
         yaw_reward_weight=1,
+
+        rendor_mode="rgb_array",
         **kwargs
     ):
         utils.EzPickle.__init__(
@@ -186,7 +190,7 @@ class tr_env_gym(MujocoEnv, utils.EzPickle):
         )
         frame_skip = 20
         MujocoEnv.__init__(
-            self, xml_file, frame_skip, observation_space=observation_space, **kwargs
+            self, xml_file, frame_skip, observation_space=observation_space, render_mode=rendor_mode,**kwargs
         )
         self._reward_delay_steps = int(reward_delay_seconds/self.dt)
         self._heading_buffer = deque()
@@ -393,6 +397,7 @@ class tr_env_gym(MujocoEnv, utils.EzPickle):
             state_with_noise = np.concatenate((state_with_noise, vel_cmd))
 
         return state, observation, global_state
+        return state, observation, global_state
 
     def _angle_normalize(self, theta):
         if theta > np.pi:
@@ -458,6 +463,10 @@ class tr_env_gym(MujocoEnv, utils.EzPickle):
 
         # '''
         # with rolling noise start
+        rolling_qpos = [[0.2438013,  -0.23055046,  0.10995744,  0.46165276, -0.61078778, -0.64202933, 
+                         -0.04016669,  0.23304155, -0.2781429,   0.0948906,   0.57252615,  0.17486495, 
+                         -0.48006247, -0.64123013,  0.24824598, -0.2435365,   0.06010128,  0.12428316,  
+                         0.77737256,  0.16439319, -0.59432355]]
         rolling_qpos = [[0.2438013,  -0.23055046,  0.10995744,  0.46165276, -0.61078778, -0.64202933, 
                          -0.04016669,  0.23304155, -0.2781429,   0.0948906,   0.57252615,  0.17486495, 
                          -0.48006247, -0.64123013,  0.24824598, -0.2435365,   0.06010128,  0.12428316,  

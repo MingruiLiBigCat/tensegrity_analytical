@@ -98,6 +98,5 @@ class COM_scheduler(object):
                     'dist_direction': dist_direction,
                     'difference': diff
                 }
-        
         # Output results
         return result["foot"],result

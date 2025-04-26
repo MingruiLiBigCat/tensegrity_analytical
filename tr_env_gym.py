@@ -20,6 +20,8 @@ class tr_env_gym(MujocoEnv, utils.EzPickle):
             "human",
             "rgb_array",
             "depth_array",
+            "single_rgb_array",
+            "single_depth_array"
         ],
         "render_fps": 50,
     }
@@ -563,7 +565,7 @@ class tr_env_gym(MujocoEnv, utils.EzPickle):
         if self._desired_action == "turn" or self._desired_action == "aiming":
             for i in range(self._reward_delay_steps):
                 self.step(tendons)
-        state, observation = self._get_obs()
+        state, _,observation = self._get_obs()
 
         return state, observation
 

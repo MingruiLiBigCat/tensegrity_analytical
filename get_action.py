@@ -79,9 +79,9 @@ def forward_kinematics_trust_verbose_fixed(structure):
         bounds=bounds,
         options={
             'maxiter': 1000000,
-            'gtol': 1e-5,
-            'xtol': 1e-6,
-            'verbose': 0,
+            'gtol': 2e-4,
+            'xtol': 2e-4,
+            'verbose': 2,
             'disp': False
         }
     )
@@ -96,6 +96,7 @@ def forward_kinematics_trust_verbose_fixed(structure):
 # --- 从 MuJoCo 环境中更新结构位置 ---
 def update_position_from_env(structure, env):
     _,_,env_nodes = env._get_obs()
+    print(f"env_nodes: {env_nodes}")
     structure.node_positions = np.array(env_nodes).reshape(-1,3)
 
 # --- COM 轨迹规划 ---

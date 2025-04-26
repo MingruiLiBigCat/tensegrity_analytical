@@ -51,7 +51,7 @@ class COM_scheduler(object):
         
         return edges
     
-    def get_COM(self,x0,y0,x1,y1,x2,y2,x3,y3):
+    def get_COM(self,x0,y0,x1,y1,x2,y2,x3,y3,allowance=0.1):
         """
         Calculate the foot of the perpendicular from point (x0, y0) to the line
         defined by the triangle vertices (x1, y1), (x2, y2), (x3, y3).
@@ -69,7 +69,6 @@ class COM_scheduler(object):
         
         max_diff = -float('inf')
         result = None
-        
         for i, (a, b, c) in enumerate(edges, 1):
             # Calculate foot of perpendicular
             denominator = a**2 + b**2
@@ -78,6 +77,8 @@ class COM_scheduler(object):
             # Foot coordinates
             x_foot = (b*(b*x0 - a*y0) - a*c) / denominator
             y_foot = (a*(-b*x0 + a*y0) - b*c) / denominator
+            x_foot += allowance * a / math.sqrt(denominator)
+            y_foot += allowance * b / math.sqrt(denominator)
             
             # Distance to origin
             dist_origin = self.__distance_to_origin(x_foot, y_foot)

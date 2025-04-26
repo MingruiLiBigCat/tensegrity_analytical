@@ -18,6 +18,8 @@ def run():
     # 1. 初始化环境与调度器
     env = tr_env_gym.tr_env_gym(
         render_mode="rgb_array",
+        width=640,   # 添加宽度
+        height=480, 
         xml_file=os.path.join(os.getcwd(), "3prism_jonathan_steady_side.xml"),
         is_test=False,
         desired_action="straight",
@@ -25,6 +27,7 @@ def run():
         terminate_when_unhealthy=True
     )
     #test_frame(env)
+    env.reset()
     scheduler = COM_scheduler(1, 0)
     fourcc = cv2.VideoWriter_fourcc(*'mp4v')  # 定义编码器
     out = cv2.VideoWriter('output.mp4', fourcc, 60, (640, 480))
@@ -32,7 +35,8 @@ def run():
     # 2. 获取初始化数据（只能通过接口）
     env.render()
     state, observation,global_obs=env._get_obs()
-
+    print("observation:", global_obs)
+    #test_frame(env)
     _,_,env_nodes = env._get_obs() # 获取节点位置
     env_nodes = np.array(env_nodes).reshape(-1,3)  # 仅包含节点位置
     rod_pairs = env.get_rod_pairs()
@@ -58,9 +62,9 @@ def run():
     q_current = rest_lengths.copy()[:6]
     rest_lengths_history = []
     os.makedirs("figs", exist_ok=True)
-
+    done = False
     # 4. 控制主循环
-    for step in range(100):
+    for step in range(1000):
         update_position_from_env(structure, env)
 
         # 获取当前 COM
@@ -74,17 +78,19 @@ def run():
 
         # 由调度器给出目标 COM
         (x_target, y_target), _ = scheduler.get_COM(x0, y0, x1, y1, x2, y2, x3, y3)
-        target_com = np.array([x_target, y_target,com[2]])
-
+        target_com = np.array([x_target, y_target,com[2]+0.05])
+        print(f"{step} step de 目标 COM: {target_com}, 而现在的com是{com}")
         # 执行单步 IK 解算
         q_next, nodes = ik_step(structure, q_current, target_com, history=rest_lengths_history, step=step)
 
         action = q_next - q_current
-        obs, done,  info = env.step(action[:6])
-        frame =env.render()
-        cv2.imwrite(f'frames/frame_{step:04d}.png', frame) 
-        out.write(frame)
-        out.release()
+        for i in range(5):
+            if done is not True:
+                obs, done,  info = env.step(action[:6])
+        # frame =env.render()
+        # cv2.imwrite(f'frames/frame_{step:04d}.png', frame) 
+        # out.write(frame)
+        #out.release()
 
         q_current = q_next.copy()
 

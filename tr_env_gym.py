@@ -584,10 +584,10 @@ class tr_env_gym(MujocoEnv, utils.EzPickle):
         return [(1,4),(0,3),(2,5)]
     
     def get_cable_pairs(self):
-        return [(0,4),(0,2),(2,4),(1,5),(3,5),(1,4)]
+        return [(0,4),(0,2),(2,4),(1,5),(3,5),(1,3)]
     
     def get_rest_lengths(self):
-        return self.data.ten_length[0:9]
+        return self.data.ten_length[0:9]+0.1312
     
     def get_stiffnesses(self):
         return [[700,0.8],[700,0.8],[700,0.8]]

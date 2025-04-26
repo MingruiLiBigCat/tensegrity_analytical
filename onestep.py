@@ -45,11 +45,10 @@ def test_frame(env):
     exit(1)
 
 def run():
+    global out
     # 1. 初始化环境与调度器
     env = tr_env_gym.tr_env_gym(
         render_mode="rgb_array",
-        width=640,   # 添加宽度
-        height=480, 
         xml_file=os.path.join(os.getcwd(), "3prism_jonathan_steady_side.xml"),
         is_test=False,
         desired_action="straight",
@@ -98,7 +97,7 @@ def run():
     os.makedirs("figs", exist_ok=True)
 
     q_current = structure.rest_lengths.copy()[:6]
-    done = False
+
     # 4. 控制主循环
     for step in range(100):
         print(f"🚀 第 {step} 步")
@@ -110,21 +109,16 @@ def run():
         x2, y2 = structure.node_positions[3][:2]
         x3, y3 = structure.node_positions[4][:2]
 
-        # 由调度器给出目标 COM
         (x_target, y_target), _ = scheduler.get_COM(x0, y0, x1, y1, x2, y2, x3, y3)
-        target_com = np.array([x_target, y_target,com[2]+0.05])
-        print(f"{step} step de 目标 COM: {target_com}, 而现在的com是{com}")
-        # 执行单步 IK 解算
+        target_com = np.array([x_target, y_target, com[2]])
+
         q_next, nodes = ik_step(structure, q_current, target_com, history=rest_lengths_history, step=step)
 
         action = q_next - q_current
-        for i in range(5):
-            if done is not True:
-                obs, done,  info = env.step(action[:6])
-        # frame =env.render()
-        # cv2.imwrite(f'frames/frame_{step:04d}.png', frame) 
-        # out.write(frame)
-        #out.release()
+        obs, done, info = env.step(action[:6])
+        frame = env.render()
+        cv2.imwrite(f'frames/frame_{step:04d}.png', frame)
+        out.write(frame)
 
         q_current = q_next.copy()
 

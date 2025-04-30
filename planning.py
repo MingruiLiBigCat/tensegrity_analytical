@@ -51,7 +51,7 @@ class COM_scheduler(object):
         
         return edges
     
-    def get_COM(self,x0,y0,x1,y1,x2,y2,x3,y3,allowance=0.1):
+    def get_COM(self,x0,y0,x1,y1,x2,y2,x3,y3,allowance=0.03):
         """
         Calculate the foot of the perpendicular from point (x0, y0) to the line
         defined by the triangle vertices (x1, y1), (x2, y2), (x3, y3).

@@ -15,17 +15,18 @@ class TensegrityStructure:
         self.rest_lengths = rest_lengths  # Only for rigid cables
         self.stiffness = stiffness        # Only for elastic cables
         self.mass = mass
-        if fixed_nodes == [-1, -1, -1]:
-            lowest_z_indices = np.argsort(node_positions[:, 2])[:2].tolist()
-            self.fixed_nodes = lowest_z_indices
-            print(f"⚠️ 检测到默认 fixed_nodes，已自动设为最低 2 个点: {self.fixed_nodes}")
-        else:
-            self.fixed_nodes = fixed_nodes
+        # if fixed_nodes == [-1, -1, -1]:
+        #     lowest_z_indices = np.argsort(node_positions[:, 2])[:2].tolist()
+        #     self.fixed_nodes = lowest_z_indices
+        #     print(f"⚠️ 检测到默认 fixed_nodes，已自动设为最低 2 个点: {self.fixed_nodes}")
+        # else:
+        #     self.fixed_nodes = fixed_nodes
+        self.fixed_nodes = [0,2,5]
         self.g = np.array([0, 0, -9.81])
 
-        print("🔧 Rods:", self.rod_pairs)
-        print("🔧 Fixed nodes:", self.fixed_nodes)
-        print("🔧 Rigid cables:", self.rigid_cable_pairs)
+        #print("🔧 Rods:", self.rod_pairs)
+        #print("🔧 Fixed nodes:", self.fixed_nodes)
+        #print("🔧 Rigid cables:", self.rigid_cable_pairs)
 
     def pack(self, nodes):
         return nodes.flatten()
@@ -54,22 +55,22 @@ class TensegrityStructure:
             v = nodes[i] - nodes[j]
             L = np.linalg.norm(v)
             L0 = np.linalg.norm(self.node_positions[i] - self.node_positions[j])
-            print(f"🧵 Rod [{i}-{j}] | Current: {L:.4f}, Target: {L0:.4f}, Error: {L - L0:.4e}")
+            #print(f"🧵 Rod [{i}-{j}] | Current: {L:.4f}, Target: {L0:.4f}, Error: {L - L0:.4e}")
             constraints.append(L - L0)
         for k in self.fixed_nodes:
             diff = (nodes[k] - self.node_positions[k]).tolist()
-            print(f"📌 Fixed node {k} delta: {diff}")
+            #print(f"📌 Fixed node {k} delta: {diff}")
             constraints.extend(diff)
         for k, (i, j) in enumerate(self.rigid_cable_pairs):
             L = np.linalg.norm(nodes[i] - nodes[j])
-            print(f"🔩 Rigid cable [{i}-{j}] | Current: {L:.4f}, Target: {self.rest_lengths[k]:.4f}")
+            #print(f"🔩 Rigid cable [{i}-{j}] | Current: {L:.4f}, Target: {self.rest_lengths[k]:.4f}")
             constraints.append(L - self.rest_lengths[k])
         return np.array(constraints)
 
     def ground_constraint(self, x):
         nodes = self.unpack(x)
         min_z = nodes[:, 2].min()
-        print(f"🟢 Min z in ground constraint: {min_z:.4f}")
+        #print(f"🟢 Min z in ground constraint: {min_z:.4f}")
         return nodes[:, 2]
 
     def center_of_mass(self, nodes):
@@ -82,6 +83,7 @@ class TensegrityStructure:
 
     def update_position_from_env(self, env):
         _, _, env_nodes = env._get_obs()
+        print(env_nodes)
         self.node_positions = np.array(env_nodes).reshape(-1, 3)
 
 # --- Forward kinematics with diagnostics ---
@@ -91,20 +93,21 @@ def forward_kinematics_trust_verbose_fixed(structure):
     ineq_constraint = {'type': 'ineq', 'fun': structure.ground_constraint}
     bounds = Bounds([-np.inf] * len(x0), [np.inf] * len(x0))
 
-    print("📏 Num variables:", len(x0))
-    print("🗐 Num equality constraints:", len(structure.rod_constraints(x0)))
-    print("🗐 Num inequality constraints:", len(structure.ground_constraint(x0)))
+    #print("📏 Num variables:", len(x0))
+    #print("🗐 Num equality constraints:", len(structure.rod_constraints(x0)))
+    #print("🗐 Num inequality constraints:", len(structure.ground_constraint(x0)))
 
     res = minimize(
         fun=structure.potential_energy,
         x0=x0,
-        method='SLSQP',
+        method='trust-constr',
         constraints=[eq_constraint, ineq_constraint],
         bounds=bounds,
         options={
-            'maxiter': 10000,
-            'ftol': 1e-9,
-            'disp': True
+            'maxiter': 100000,
+            'gtol': 1e-5,
+            'disp': True,
+            'xtol': 1e-5
         }
     )
 

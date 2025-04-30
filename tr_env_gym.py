@@ -19,9 +19,7 @@ class tr_env_gym(MujocoEnv, utils.EzPickle):
         "render_modes": [
             "human",
             "rgb_array",
-            "depth_array",
-            "single_rgb_array",
-            "single_depth_array"
+            "depth_array"
         ],
         "render_fps": 50,
     }
@@ -242,6 +240,7 @@ class tr_env_gym(MujocoEnv, utils.EzPickle):
         orientation_vector_before = left_COM_before - right_COM_before
         psi_before = np.arctan2(-orientation_vector_before[0], orientation_vector_before[1])
         filtered_action = self._action_filter(action, self.data.ctrl[:].copy())
+        print(filtered_action)
         self.do_simulation(filtered_action, self.frame_skip)
         xy_position_after = (self.get_body_com("r01_body")[:2].copy() + \
                             self.get_body_com("r23_body")[:2].copy() + \

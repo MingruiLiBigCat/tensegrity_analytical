@@ -47,7 +47,7 @@ def test_frame(env):
 def run():
     # 1. 初始化环境与调度器
     env = tr_env_gym.tr_env_gym(
-        render_mode="rgb_array",
+        render_mode="human",
         width=640,   # 添加宽度
         height=480, 
         xml_file=os.path.join(os.getcwd(), "3prism_jonathan_steady_side.xml"),
@@ -56,6 +56,7 @@ def run():
         desired_direction=1,
         terminate_when_unhealthy=True
     )
+    env.reset()
     scheduler = COM_scheduler(1, 0)
     fourcc = cv2.VideoWriter_fourcc(*'avc1')
     out = cv2.VideoWriter('output.mp4', fourcc, 60, (640, 480))
@@ -112,13 +113,13 @@ def run():
 
         # 由调度器给出目标 COM
         (x_target, y_target), _ = scheduler.get_COM(x0, y0, x1, y1, x2, y2, x3, y3)
-        target_com = np.array([x_target, y_target,com[2]+0.05])
+        target_com = np.array([x_target, y_target,com[2]+0.01])
         print(f"{step} step de 目标 COM: {target_com}, 而现在的com是{com}")
         # 执行单步 IK 解算
         q_next, nodes = ik_step(structure, q_current, target_com, history=rest_lengths_history, step=step)
 
         action = q_next - q_current
-        for i in range(5):
+        for i in range(3):
             if done is not True:
                 obs, done,  info = env.step(action[:6])
         # frame =env.render()

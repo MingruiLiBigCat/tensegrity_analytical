@@ -56,7 +56,6 @@ def run():
         desired_direction=1,
         terminate_when_unhealthy=True
     )
-    env.reset()
     scheduler = COM_scheduler(1, 0)
     fourcc = cv2.VideoWriter_fourcc(*'avc1')
     out = cv2.VideoWriter('output.mp4', fourcc, 60, (640, 480))
@@ -122,7 +121,7 @@ def run():
         for i in range(3):
             if done is not True:
                 obs, done,  info = env.step(action[:6])
-        # frame =env.render()
+        env.render()
         # cv2.imwrite(f'frames/frame_{step:04d}.png', frame) 
         # out.write(frame)
         #out.release()

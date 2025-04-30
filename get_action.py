@@ -23,6 +23,7 @@ class TensegrityStructure:
         #     self.fixed_nodes = fixed_nodes
         self.fixed_nodes = self.get_fixed_nodes()
         self.g = np.array([0, 0, -9.81])
+        self.threshold = 0.08
 
         #print("🔧 Rods:", self.rod_pairs)
         #print("🔧 Fixed nodes:", self.fixed_nodes)
@@ -30,7 +31,7 @@ class TensegrityStructure:
 
     def get_fixed_nodes(self):
         sorted_position = np.sort(self.node_positions[:, 2])
-        if sorted_position[2]-sorted_position[0]>0.1:
+        if sorted_position[2]-sorted_position[0]>self.threshold:
             return [-1,-1,-1]
         lowest_z_indices = np.argsort(self.node_positions[:, 2])[:3].tolist()
         print("Fixed Nodes:",lowest_z_indices)
@@ -105,7 +106,6 @@ def forward_kinematics_trust_verbose_fixed(structure):
     #print("📏 Num variables:", len(x0))
     #print("🗐 Num equality constraints:", len(structure.rod_constraints(x0)))
     #print("🗐 Num inequality constraints:", len(structure.ground_constraint(x0)))
-
     res = minimize(
         fun=structure.potential_energy,
         x0=x0,
@@ -113,15 +113,16 @@ def forward_kinematics_trust_verbose_fixed(structure):
         constraints=[eq_constraint, ineq_constraint],
         bounds=bounds,
         options={
-            'maxiter': 100000,
-            'gtol': 1e-4,
+            'maxiter': 30000,
+            'gtol': 3e-3,
             'disp': False,
-            'xtol': 1e-4
+            'xtol': 3e-3
         }
     )
 
     if not res.success:
-        raise RuntimeError(f"Forward kinematics failed: {res.message}")
+        print(f"Forward kinematics failed: {res.message}")
+        return None
 
     return structure.unpack(res.x)
 
@@ -152,14 +153,12 @@ def save_rest_lengths_csv(history, filename="rest_lengths.csv"):
             writer.writerow(row)
 
 # --- 单步 IK 更新函数（仅作用于刚性绳） ---
-def ik_step(structure, q_current, com_target, history=None, step=None):
+def ik_step(structure, q_current, com_target, step=None):
     structure.rest_lengths = q_current
     nodes = structure.node_positions
     current_com = structure.center_of_mass(nodes)
     error = com_target - current_com
 
-    if history is not None:
-        history.append(q_current.copy())
     if step is not None:
         save_structure_plot(nodes, step)
 
@@ -173,6 +172,8 @@ def ik_step(structure, q_current, com_target, history=None, step=None):
         dq[i] = 1e-4
         structure.rest_lengths = q_current + dq
         ne_plus = structure.center_of_mass(forward_kinematics_trust_verbose_fixed(structure))
+        if ne_plus is None:
+            return None, None
         J[:, i] = (ne_plus - current_com) / 1e-4
 
     structure.rest_lengths = q_current
@@ -180,4 +181,6 @@ def ik_step(structure, q_current, com_target, history=None, step=None):
     q_next = q_current + dq
     structure.rest_lengths = q_next
     nodes = forward_kinematics_trust_verbose_fixed(structure)
+    if nodes is None:
+        return None, None
     return q_next, nodes

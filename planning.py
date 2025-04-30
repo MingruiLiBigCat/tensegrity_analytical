@@ -18,7 +18,7 @@ class COM_scheduler(object):
     
     def __distance_to_origin(self,x, y):
         """Calculate Euclidean distance from point to origin"""
-        return math.sqrt(x**2 + y**2)
+        return -y
 
     def __distance_to_line(self,a, b, x, y):
         """Calculate signed distance from point (x,y) to line ax + by = 0"""
@@ -30,20 +30,13 @@ class COM_scheduler(object):
     def __triangle_edges(self,p1, p2, p3):
         """Return coefficients (a,b,c) for equations of triangle edges (ax + by + c = 0)"""
         edges = []
-        
-        # Edge 1: p1-p2
-        a = p2[1] - p1[1]
-        b = p1[0] - p2[0]
-        c = p2[0]*p1[1] - p1[0]*p2[1]
-        edges.append((a, b, c))
-        
-        # Edge 2: p2-p3
+        # Edge 1: p2-p3
         a = p3[1] - p2[1]
         b = p2[0] - p3[0]
         c = p3[0]*p2[1] - p2[0]*p3[1]
         edges.append((a, b, c))
         
-        # Edge 3: p3-p1
+        # Edge 2: p1-p3
         a = p1[1] - p3[1]
         b = p3[0] - p1[0]
         c = p1[0]*p3[1] - p3[0]*p1[1]
@@ -63,6 +56,8 @@ class COM_scheduler(object):
         b_dir (float): Coefficient for the direction line.
         x0 (float): x-coordinate of current COM.
         y0 (float): y-coordinate of current COM.
+        x2 (float): x-coordinate of the one-side vertex.
+        y2 (float): y-coordinate of the one-side vertex.
         """
         # Get equations for triangle edges
         edges = self.__triangle_edges((x1, y1), (x2, y2), (x3, y3))
@@ -85,9 +80,9 @@ class COM_scheduler(object):
             
             # Signed distance to direction line
             dist_direction = self.__distance_to_line(self.a, self.b, x_foot, y_foot)
-            
+            #print("Planner parameter:",x_foot, y_foot, dist_origin, dist_direction)
             # Calculate the difference
-            diff = dist_origin - abs(dist_direction)
+            diff = dist_origin #- abs(dist_direction)
             
             # Update maximum difference
             if diff > max_diff:

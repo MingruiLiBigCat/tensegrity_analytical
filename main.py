@@ -32,7 +32,7 @@ def save_rest_lengths_csv(history, filename="rest_lengths.csv"):
         return
     with open(filename, mode='w', newline='') as f:
         writer = csv.writer(f)
-        writer.writerow([f"rigid_cable_{i}" for i in range(len(history[0]))])
+        writer.writerow(["step"]+[f"rigid_cable_{i}" for i in range(6)]+["com_x", "com_y", "target_com_x", "target_com_y"])
         for row in history:
             writer.writerow(row)
     print("✅ 已保存 rest_lengths.csv")
@@ -100,17 +100,19 @@ def run():
     q_current = structure.rest_lengths.copy()[:6]
     done = False
     # 4. 控制主循环
-    for step in range(100):
-        print(f"🚀 第 {step} 步")
+    for step in range(500):
+        print(f"🚀 Step  {step}")
         structure.update_position_from_env(env)
 
         com = structure.center_of_mass(np.array(structure.node_positions))
         x0, y0 = com[0], com[1]
         fnodes = structure.get_fixed_nodes()
+        fnodes = sort_fnodes(fnodes)
         if fnodes[0] == -1:
             print("Tipping, no action generated.COM position (x0, y0):", com[:2])
-            env.step(np.array([0, 0, 0, 0, 0, 0]))
+            obs, done,  info =env.step(np.array([0, 0, 0, 0, 0, 0]))
             env.render()
+            rest_lengths_history.append(np.concatenate([[step], q_current, com, com]))
             continue
         x1, y1 = structure.node_positions[fnodes[0]][:2]
         x2, y2 = structure.node_positions[fnodes[1]][:2]
@@ -120,12 +122,15 @@ def run():
         target_com = np.array([x_target, y_target,com[2]+0.01])
         print(f"{step} target of COM is: {target_com}, while now COM is{com}")
         # 执行单步 IK 解算
-        q_next, nodes = ik_step(structure, q_current, target_com, history=rest_lengths_history, step=step)
-
-        action = q_next - q_current
+        q_next, nodes = ik_step(structure, q_current, target_com,  step=step)
+        if nodes is not None:  
+            action = q_next - q_current
         if done is not True:
-            obs, done,  info = env.step(action[:6])
+            for _ in range(2):
+                obs, done,  info = env.step(action[:6])
         env.render()
+        #print(step, q_current, q_next, target_com)
+        rest_lengths_history.append(np.concatenate([[step], q_current, com, target_com])) 
         # cv2.imwrite(f'frames/frame_{step:04d}.png', frame) 
         # out.write(frame)
         #out.release()
@@ -138,13 +143,24 @@ def run():
         save_structure_plot(nodes, step, save_dir="figs")
 
         if done:
-            print("❗️仿真终止")
+            print("❗️Simulation Terminated")
             break
 
     out.release()
-    print("📼 视频写入器已释放")
+    print("📼 Video writer released")
     if not interrupted:
         save_rest_lengths_csv(rest_lengths_history)
+
+def sort_fnodes(fnodes):
+    odd = [x for x in fnodes if x % 2 != 0]
+    even = [x for x in fnodes if x % 2 == 0]
+    
+    if len(odd) == 2 and len(even) == 1:
+        return odd + even
+    elif len(even) == 2 and len(odd) == 1:
+        return even + odd
+    else:
+        return fnodes
 
 if __name__ == "__main__":
     run()

@@ -108,7 +108,7 @@ def run():
         x0, y0 = com[0], com[1]
         fnodes = structure.get_fixed_nodes()
         if fnodes[0] == -1:
-            print("Tipping, no action generated")
+            print("Tipping, no action generated.COM position (x0, y0):", com[:2])
             env.step(np.array([0, 0, 0, 0, 0, 0]))
             env.render()
             continue

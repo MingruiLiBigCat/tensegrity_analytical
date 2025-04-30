@@ -30,7 +30,7 @@ class TensegrityStructure:
 
     def get_fixed_nodes(self):
         sorted_position = np.sort(self.node_positions[:, 2])
-        if sorted_position[2]-sorted_position[0]>0.03:
+        if sorted_position[2]-sorted_position[0]>0.1:
             return [-1,-1,-1]
         lowest_z_indices = np.argsort(self.node_positions[:, 2])[:3].tolist()
         print("Fixed Nodes:",lowest_z_indices)
@@ -114,9 +114,9 @@ def forward_kinematics_trust_verbose_fixed(structure):
         bounds=bounds,
         options={
             'maxiter': 100000,
-            'gtol': 1e-5,
+            'gtol': 1e-4,
             'disp': False,
-            'xtol': 1e-5
+            'xtol': 1e-4
         }
     )
 

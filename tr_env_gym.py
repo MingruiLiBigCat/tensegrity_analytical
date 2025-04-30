@@ -26,7 +26,7 @@ class tr_env_gym(MujocoEnv, utils.EzPickle):
 
     def __init__(
         self,
-        xml_file=os.path.join(os.getcwd(),"3prism_jonathan_steady_side.xml"),
+        xml_file=os.path.join(os.getcwd(),"t.xml"),
         use_contact_forces=False,
         use_tendon_length=False,
         use_cap_velocity=True,

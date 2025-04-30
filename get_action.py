@@ -21,13 +21,22 @@ class TensegrityStructure:
         #     print(f"⚠️ 检测到默认 fixed_nodes，已自动设为最低 2 个点: {self.fixed_nodes}")
         # else:
         #     self.fixed_nodes = fixed_nodes
-        self.fixed_nodes = [0,2,5]
+        self.fixed_nodes = self.get_fixed_nodes()
         self.g = np.array([0, 0, -9.81])
 
         #print("🔧 Rods:", self.rod_pairs)
         #print("🔧 Fixed nodes:", self.fixed_nodes)
         #print("🔧 Rigid cables:", self.rigid_cable_pairs)
 
+    def get_fixed_nodes(self):
+        sorted_position = np.sort(self.node_positions[:, 2])
+        if sorted_position[2]-sorted_position[0]>0.03:
+            return [-1,-1,-1]
+        lowest_z_indices = np.argsort(self.node_positions[:, 2])[:3].tolist()
+        print("Fixed Nodes:",lowest_z_indices)
+        self.fixed_nodes = lowest_z_indices
+        return lowest_z_indices
+    
     def pack(self, nodes):
         return nodes.flatten()
 
@@ -106,7 +115,7 @@ def forward_kinematics_trust_verbose_fixed(structure):
         options={
             'maxiter': 100000,
             'gtol': 1e-5,
-            'disp': True,
+            'disp': False,
             'xtol': 1e-5
         }
     )

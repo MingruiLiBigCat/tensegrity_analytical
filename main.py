@@ -106,21 +106,25 @@ def run():
 
         com = structure.center_of_mass(np.array(structure.node_positions))
         x0, y0 = com[0], com[1]
-        x1, y1 = structure.node_positions[0][:2]
-        x2, y2 = structure.node_positions[3][:2]
-        x3, y3 = structure.node_positions[4][:2]
-
+        fnodes = structure.get_fixed_nodes()
+        if fnodes[0] == -1:
+            print("Tipping, no action generated")
+            env.step(np.array([0, 0, 0, 0, 0, 0]))
+            env.render()
+            continue
+        x1, y1 = structure.node_positions[fnodes[0]][:2]
+        x2, y2 = structure.node_positions[fnodes[1]][:2]
+        x3, y3 = structure.node_positions[fnodes[2]][:2]
         # 由调度器给出目标 COM
         (x_target, y_target), _ = scheduler.get_COM(x0, y0, x1, y1, x2, y2, x3, y3)
         target_com = np.array([x_target, y_target,com[2]+0.01])
-        print(f"{step} step de 目标 COM: {target_com}, 而现在的com是{com}")
+        print(f"{step} target of COM is: {target_com}, while now COM is{com}")
         # 执行单步 IK 解算
         q_next, nodes = ik_step(structure, q_current, target_com, history=rest_lengths_history, step=step)
 
         action = q_next - q_current
-        for i in range(3):
-            if done is not True:
-                obs, done,  info = env.step(action[:6])
+        if done is not True:
+            obs, done,  info = env.step(action[:6])
         env.render()
         # cv2.imwrite(f'frames/frame_{step:04d}.png', frame) 
         # out.write(frame)

@@ -240,7 +240,8 @@ class tr_env_gym(MujocoEnv, utils.EzPickle):
         orientation_vector_before = left_COM_before - right_COM_before
         psi_before = np.arctan2(-orientation_vector_before[0], orientation_vector_before[1])
         filtered_action = self._action_filter(action, self.data.ctrl[:].copy())
-        print(filtered_action)
+        print("filtered_action:",filtered_action)
+        
         self.do_simulation(filtered_action, self.frame_skip)
         xy_position_after = (self.get_body_com("r01_body")[:2].copy() + \
                             self.get_body_com("r23_body")[:2].copy() + \
@@ -266,7 +267,7 @@ class tr_env_gym(MujocoEnv, utils.EzPickle):
 
         tendon_length = np.array(self.data.ten_length)
         tendon_length_6 = tendon_length[:6]
-        
+        print("state:",tendon_length)
         state, observation,global_obs = self._get_obs()
         done = state[0]==np.nan
         #print("state", state)
@@ -436,7 +437,8 @@ class tr_env_gym(MujocoEnv, utils.EzPickle):
         del_action = action / 0.05 * vel_constraint*self.dt
 
         filtered_action = last_action + del_action
-        return filtered_action
+        #return filtered_action
+        return action
 
     def _reset_inherent_params(self):
         friction_coeff = np.random.uniform(self._friction_noise_range[0], self._friction_noise_range[1])

@@ -23,7 +23,7 @@ class TensegrityStructure:
         #     self.fixed_nodes = fixed_nodes
         self.fixed_nodes = self.get_fixed_nodes()
         self.g = np.array([0, 0, -9.81])
-        self.threshold = 0.08
+        #self.threshold = 0.08
 
         #print("🔧 Rods:", self.rod_pairs)
         #print("🔧 Fixed nodes:", self.fixed_nodes)
@@ -31,7 +31,7 @@ class TensegrityStructure:
 
     def get_fixed_nodes(self):
         sorted_position = np.sort(self.node_positions[:, 2])
-        if sorted_position[2]-sorted_position[0]>self.threshold:
+        if sorted_position[2]-sorted_position[0]>0.08:
             return [-1,-1,-1]
         lowest_z_indices = np.argsort(self.node_positions[:, 2])[:3].tolist()
         print("Fixed Nodes:",lowest_z_indices)

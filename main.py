@@ -50,7 +50,7 @@ def run():
         render_mode="human",
         width=640,   # 添加宽度
         height=480, 
-        xml_file=os.path.join(os.getcwd(), "3prism_jonathan_steady_side.xml"),
+        xml_file=os.path.join(os.getcwd(), "t.xml"),
         is_test=False,
         desired_action="straight",
         desired_direction=1,

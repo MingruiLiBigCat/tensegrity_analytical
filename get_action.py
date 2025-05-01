@@ -12,32 +12,21 @@ class TensegrityStructure:
         self.rod_pairs = rod_pairs
         self.elastic_cable_pairs = elastic_cable_pairs  # passive
         self.rigid_cable_pairs = rigid_cable_pairs      # active (controlled)
-        self.rest_lengths = rest_lengths  # Only for rigid cables
-        self.stiffness = stiffness        # Only for elastic cables
+        self.rest_lengths = rest_lengths
+        self.stiffness = stiffness
         self.mass = mass
-        # if fixed_nodes == [-1, -1, -1]:
-        #     lowest_z_indices = np.argsort(node_positions[:, 2])[:2].tolist()
-        #     self.fixed_nodes = lowest_z_indices
-        #     print(f"⚠️ 检测到默认 fixed_nodes，已自动设为最低 2 个点: {self.fixed_nodes}")
-        # else:
-        #     self.fixed_nodes = fixed_nodes
         self.fixed_nodes = self.get_fixed_nodes()
         self.g = np.array([0, 0, -9.81])
-        #self.threshold = 0.08
-
-        #print("🔧 Rods:", self.rod_pairs)
-        #print("🔧 Fixed nodes:", self.fixed_nodes)
-        #print("🔧 Rigid cables:", self.rigid_cable_pairs)
 
     def get_fixed_nodes(self):
         sorted_position = np.sort(self.node_positions[:, 2])
-        if sorted_position[2]-sorted_position[0]>0.08:
-            return [-1,-1,-1]
+        if sorted_position[2] - sorted_position[0] > 0.08:
+            return [-1, -1, -1]
         lowest_z_indices = np.argsort(self.node_positions[:, 2])[:3].tolist()
-        print("Fixed Nodes:",lowest_z_indices)
+        print("Fixed Nodes:", lowest_z_indices)
         self.fixed_nodes = lowest_z_indices
         return lowest_z_indices
-    
+
     def pack(self, nodes):
         return nodes.flatten()
 
@@ -65,22 +54,17 @@ class TensegrityStructure:
             v = nodes[i] - nodes[j]
             L = np.linalg.norm(v)
             L0 = np.linalg.norm(self.node_positions[i] - self.node_positions[j])
-            #print(f"🧵 Rod [{i}-{j}] | Current: {L:.4f}, Target: {L0:.4f}, Error: {L - L0:.4e}")
             constraints.append(L - L0)
         for k in self.fixed_nodes:
             diff = (nodes[k] - self.node_positions[k]).tolist()
-            #print(f"📌 Fixed node {k} delta: {diff}")
             constraints.extend(diff)
         for k, (i, j) in enumerate(self.rigid_cable_pairs):
             L = np.linalg.norm(nodes[i] - nodes[j])
-            #print(f"🔩 Rigid cable [{i}-{j}] | Current: {L:.4f}, Target: {self.rest_lengths[k]:.4f}")
             constraints.append(L - self.rest_lengths[k])
         return np.array(constraints)
 
     def ground_constraint(self, x):
         nodes = self.unpack(x)
-        min_z = nodes[:, 2].min()
-        #print(f"🟢 Min z in ground constraint: {min_z:.4f}")
         return nodes[:, 2]
 
     def center_of_mass(self, nodes):
@@ -96,16 +80,13 @@ class TensegrityStructure:
         print(env_nodes)
         self.node_positions = np.array(env_nodes).reshape(-1, 3)
 
-# --- Forward kinematics with diagnostics ---
+# Forward kinematics solver using constrained energy minimization
 def forward_kinematics_trust_verbose_fixed(structure):
     x0 = structure.pack(structure.node_positions)
     eq_constraint = {'type': 'eq', 'fun': structure.rod_constraints}
     ineq_constraint = {'type': 'ineq', 'fun': structure.ground_constraint}
     bounds = Bounds([-np.inf] * len(x0), [np.inf] * len(x0))
 
-    #print("📏 Num variables:", len(x0))
-    #print("🗐 Num equality constraints:", len(structure.rod_constraints(x0)))
-    #print("🗐 Num inequality constraints:", len(structure.ground_constraint(x0)))
     res = minimize(
         fun=structure.potential_energy,
         x0=x0,
@@ -126,7 +107,7 @@ def forward_kinematics_trust_verbose_fixed(structure):
 
     return structure.unpack(res.x)
 
-# --- 可视化结构保存图像 ---
+# Save 3D structure plot of tensegrity nodes
 def save_structure_plot(nodes, step, save_dir="figs"):
     os.makedirs(save_dir, exist_ok=True)
     fig = plt.figure()
@@ -141,10 +122,10 @@ def save_structure_plot(nodes, step, save_dir="figs"):
     plt.savefig(os.path.join(save_dir, f"step_{step:03d}.png"))
     plt.close()
 
-# --- 保存绳长历史为 CSV ---
+# Save rest length history to CSV
 def save_rest_lengths_csv(history, filename="rest_lengths.csv"):
     if not history:
-        print("⚠️ rest_lengths_history 为空，跳过 CSV 保存")
+        print("rest_lengths_history is empty, skipping CSV save")
         return
     with open(filename, mode='w', newline='') as f:
         writer = csv.writer(f)
@@ -152,7 +133,7 @@ def save_rest_lengths_csv(history, filename="rest_lengths.csv"):
         for row in history:
             writer.writerow(row)
 
-# --- 单步 IK 更新函数（仅作用于刚性绳） ---
+# Single-step inverse kinematics using finite difference Jacobian
 def ik_step(structure, q_current, com_target, step=None):
     structure.rest_lengths = q_current
     nodes = structure.node_positions
@@ -171,9 +152,10 @@ def ik_step(structure, q_current, com_target, step=None):
         dq = np.zeros_like(q_current)
         dq[i] = 1e-4
         structure.rest_lengths = q_current + dq
-        ne_plus = structure.center_of_mass(forward_kinematics_trust_verbose_fixed(structure))
-        if ne_plus is None:
+        perturbed_nodes = forward_kinematics_trust_verbose_fixed(structure)
+        if perturbed_nodes is None:
             return None, None
+        ne_plus = structure.center_of_mass(perturbed_nodes)
         J[:, i] = (ne_plus - current_com) / 1e-4
 
     structure.rest_lengths = q_current

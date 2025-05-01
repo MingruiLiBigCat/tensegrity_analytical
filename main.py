@@ -8,19 +8,19 @@ import signal
 import sys
 import csv
 
-# 全局变量以支持中断处理
+# Global variables for interrupt handling
 rest_lengths_history = []
 interrupted = False
 out = None
 
-# 中断信号处理：保存绳长历史、释放视频写入器
+# Handle Ctrl+C (SIGINT): save data and release video writer
 def signal_handler(sig, frame):
     global interrupted, out
     interrupted = True
-    print("\n🚨 捕获中断信号，准备保存数据...")
+    print("\nInterrupt signal received. Preparing to save data...")
     if out is not None:
         out.release()
-        print("📼 已关闭视频写入器")
+        print("Video writer closed")
     save_rest_lengths_csv(rest_lengths_history)
     sys.exit(0)
 
@@ -28,14 +28,14 @@ signal.signal(signal.SIGINT, signal_handler)
 
 def save_rest_lengths_csv(history, filename="rest_lengths.csv"):
     if not history:
-        print("⚠️ rest_lengths_history 为空，跳过 CSV 保存")
+        print("rest_lengths_history is empty, skipping CSV export")
         return
     with open(filename, mode='w', newline='') as f:
         writer = csv.writer(f)
-        writer.writerow(["step"]+[f"rigid_cable_{i}" for i in range(6)]+["com_x", "com_y", "target_com_x", "target_com_y"])
+        writer.writerow(["step"] + [f"rigid_cable_{i}" for i in range(6)] + ["com_x", "com_y", "target_com_x", "target_com_y"])
         for row in history:
             writer.writerow(row)
-    print("✅ 已保存 rest_lengths.csv")
+    print("rest_lengths.csv saved successfully")
 
 def test_frame(env):
     frame = env.render()
@@ -45,11 +45,11 @@ def test_frame(env):
     exit(1)
 
 def run():
-    # 1. 初始化环境与调度器
+    # 1. Initialize environment and COM scheduler
     env = tr_env_gym.tr_env_gym(
         render_mode="human",
-        width=640,   # 添加宽度
-        height=480, 
+        width=640,
+        height=480,
         xml_file=os.path.join(os.getcwd(), "t.xml"),
         is_test=False,
         desired_action="straight",
@@ -61,7 +61,7 @@ def run():
     out = cv2.VideoWriter('output.mp4', fourcc, 60, (640, 480))
     os.makedirs('frames', exist_ok=True)
 
-    # 2. 获取初始化数据
+    # 2. Get initial data from environment
     env.render()
     _, _, env_nodes = env._get_obs()
     env_nodes = np.array(env_nodes).reshape(-1, 3)
@@ -86,22 +86,23 @@ def run():
     structure.node_positions += 1e-4 * np.random.randn(*structure.node_positions.shape)
 
     try:
-        print("⏳ 正在进行结构初始校正...")
+        print("Performing initial structural correction...")
         corrected_nodes = forward_kinematics_trust_verbose_fixed(structure)
         structure.node_positions = corrected_nodes.copy()
-        print("✅ 初始结构已校正完成")
+        print("Initial structure corrected successfully")
     except RuntimeError as e:
-        print("❌ 初始结构校正失败：", e)
-        print("⚠️ 启用 fallback：直接使用原始节点继续运行")
+        print("Initial correction failed:", e)
+        print("Fallback enabled: using original node positions")
 
     q_current = rest_lengths.copy()[:6]
     os.makedirs("figs", exist_ok=True)
 
     q_current = structure.rest_lengths.copy()[:6]
     done = False
-    # 4. 控制主循环
+
+    # 4. Main control loop
     for step in range(500):
-        print(f"🚀 Step  {step}")
+        print(f"Step {step}")
         structure.update_position_from_env(env)
 
         com = structure.center_of_mass(np.array(structure.node_positions))
@@ -109,45 +110,46 @@ def run():
         fnodes = structure.get_fixed_nodes()
         fnodes = sort_fnodes(fnodes)
         if fnodes[0] == -1:
-            print("Tipping, no action generated.COM position (x0, y0):", com[:2])
-            obs, done,  info =env.step(np.array([0, 0, 0, 0, 0, 0]))
+            print("Tipping detected, no action generated. Current COM:", com[:2])
+            obs, done, info = env.step(np.array([0, 0, 0, 0, 0, 0]))
             env.render()
             rest_lengths_history.append(np.concatenate([[step], q_current, com, com]))
             continue
+
         x1, y1 = structure.node_positions[fnodes[0]][:2]
         x2, y2 = structure.node_positions[fnodes[1]][:2]
         x3, y3 = structure.node_positions[fnodes[2]][:2]
-        # 由调度器给出目标 COM
+        
+        # Get COM target from scheduler
         (x_target, y_target), _ = scheduler.get_COM(x0, y0, x1, y1, x2, y2, x3, y3)
-        target_com = np.array([x_target, y_target,com[2]+0.01])
-        print(f"{step} target of COM is: {target_com}, while now COM is{com}")
-        # 执行单步 IK 解算
-        q_next, nodes = ik_step(structure, q_current, target_com,  step=step)
-        if nodes is not None:  
+        target_com = np.array([x_target, y_target, com[2] + 0.01])
+        print(f"{step} Target COM: {target_com}, Current COM: {com}")
+        
+        # Run inverse kinematics step
+        q_next, nodes = ik_step(structure, q_current, target_com, step=step)
+        if nodes is not None:
             action = q_next - q_current
-        if done is not True:
+
+        if not done:
             for _ in range(2):
-                obs, done,  info = env.step(action[:6])
+                obs, done, info = env.step(action[:6])
         env.render()
-        #print(step, q_current, q_next, target_com)
-        rest_lengths_history.append(np.concatenate([[step], q_current, com, target_com])) 
-        # cv2.imwrite(f'frames/frame_{step:04d}.png', frame) 
-        # out.write(frame)
-        #out.release()
+
+        # Record history
+        rest_lengths_history.append(np.concatenate([[step], q_current, com, target_com]))
 
         q_current = q_next.copy()
-
         print(f"[step {step}] COM = {structure.center_of_mass(nodes)}")
 
         fig_path = os.path.join("figs", f"step_{step:03d}.png")
         save_structure_plot(nodes, step, save_dir="figs")
 
         if done:
-            print("❗️Simulation Terminated")
+            print("Simulation terminated")
             break
 
     out.release()
-    print("📼 Video writer released")
+    print("Video writer released")
     if not interrupted:
         save_rest_lengths_csv(rest_lengths_history)
 

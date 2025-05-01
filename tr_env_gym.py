@@ -162,8 +162,6 @@ class tr_env_gym(MujocoEnv, utils.EzPickle):
         self._ctrl_cost_weight = ctrl_cost_weight
         self._contact_cost_weight = contact_cost_weight
         self._contact_force_range = contact_force_range
-        if self._desired_action == "turn":
-            self._contact_force_range = (-1000.0, 1000.0)
         self._reset_noise_scale = reset_noise_scale
         self._use_contact_forces = use_contact_forces
 
@@ -373,27 +371,7 @@ class tr_env_gym(MujocoEnv, utils.EzPickle):
         if self._use_tendon_length:
             state = np.concatenate((state, tendon_lengths))
             state_with_noise = np.concatenate((state_with_noise, tendon_lengths_with_noise))
-
-        if self._desired_action == "tracking" or self._desired_action == "aiming":
-            tracking_vec = self._waypt - pos_center[:2]
-            tgt_drct = tracking_vec / np.linalg.norm(tracking_vec)
-            pos_center_noise_del = (pos_rel_s0_with_noise + pos_rel_s1_with_noise + pos_rel_s2_with_noise + pos_rel_s3_with_noise + pos_rel_s4_with_noise + pos_rel_s5_with_noise)/6
-            tracking_vec_with_noise = tracking_vec - pos_center_noise_del[:2]
-            tgt_drct_with_noise = tracking_vec_with_noise / np.linalg.norm(tracking_vec_with_noise)
-
-            tgt_yaw = np.array([np.arctan2(tgt_drct[1], tgt_drct[0])])
-            tgt_yaw_with_noise = np.array([np.arctan2(tgt_drct_with_noise[1], tgt_drct_with_noise[0])])
-
-            state = np.concatenate((state,\
-                                          tracking_vec, tgt_yaw))
-            state_with_noise = np.concatenate((state_with_noise,\
-                                                     tracking_vec_with_noise, tgt_yaw_with_noise))
         
-        if self._desired_action == "vel_track":
-            vel_cmd = np.array([self._lin_vel_cmd[0], self._lin_vel_cmd[1], self._ang_vel_cmd])
-            state = np.concatenate((state, vel_cmd))
-            state_with_noise = np.concatenate((state_with_noise, vel_cmd))
-
         return state, observation, global_state
 
     def _angle_normalize(self, theta):
@@ -403,19 +381,7 @@ class tr_env_gym(MujocoEnv, utils.EzPickle):
             return self._angle_normalize(theta + 2 * np.pi)
         else:
             return theta
-    
-    def _ditch_reward(self, xy_position):
-        pointing_vec = self._waypt - self._oripoint
-        dist_pointing = np.linalg.norm(pointing_vec)
-        pointing_vec_norm = pointing_vec / dist_pointing
 
-        tracking_vec = self._waypt - xy_position
-        dist_along = np.dot(tracking_vec, pointing_vec_norm)
-        dist_bias = np.linalg.norm(tracking_vec - dist_along*pointing_vec_norm)
-
-        ditch_rew = self._ditch_reward_max * (1.0 - np.abs(dist_along)/dist_pointing) * np.exp(-dist_bias**2 / (2*self._ditch_reward_stdev**2))
-        waypt_rew = self._waypt_reward_amplitude * np.exp(-np.linalg.norm(xy_position - self._waypt)**2 / (2*self._waypt_reward_stdev**2))
-        return ditch_rew+waypt_rew
     
     def _vel_track_rew(self, vel_cmd, vel_bwd):
         track_stdev = np.array([5.0, 7.0])
@@ -483,23 +449,7 @@ class tr_env_gym(MujocoEnv, utils.EzPickle):
         self.set_state(qpos, qvel)
         # with rolling noise end
 
-        '''
-        # without rolling noise start
-        noise_low = -self._reset_noise_scale
-        noise_high = self._reset_noise_scale
 
-        qpos = self.init_qpos + self.np_random.uniform(
-            low=noise_low, high=noise_high, size=self.model.nq
-        )
-        qvel = (
-            self.init_qvel
-            + self._reset_noise_scale * self.np_random.standard_normal(self.model.nv)
-        )
-
-        if self._desired_action == "turn" or self._desired_action == "tracking" or self._desired_action == "aiming":
-            self.set_state(qpos, qvel)
-        # without rolling noise end
-        #'''
         
         position_r01 = qpos[0:3]
         rotation_r01 = Rotation.from_quat([qpos[4], qpos[5], qpos[6], qpos[3]]).as_euler('xyz')
@@ -563,9 +513,6 @@ class tr_env_gym(MujocoEnv, utils.EzPickle):
         self._reset_psi = np.arctan2(-orientation_vector_before[0], orientation_vector_before[1])
                 
         self._step_num = 0
-        if self._desired_action == "turn" or self._desired_action == "aiming":
-            for i in range(self._reward_delay_steps):
-                self.step(tendons)
         state, _,observation = self._get_obs()
 
         return state, observation
